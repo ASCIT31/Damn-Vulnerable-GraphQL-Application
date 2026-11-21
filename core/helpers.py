@@ -3,6 +3,7 @@ import uuid
 import os
 from config import WEB_UPLOADDIR
 from jwt import decode
+from werkzeug.utils import secure_filename
 from core.models import ServerMode
 
 def run_cmd(cmd):
@@ -21,12 +22,20 @@ def get_identity(token):
   return decode(token, options={"verify_signature":False, "verify_exp":False}).get('identity')
 
 def save_file(filename, text):
-  try:
-    f = open(WEB_UPLOADDIR + filename, 'w')
+  """Write an uploaded paste inside WEB_UPLOADDIR only.
+
+  The client filename is reduced to a safe basename and the resolved path
+  must stay inside the upload directory. Raises ValueError otherwise.
+  """
+  safe_name = secure_filename(filename or '')
+  if not safe_name:
+    raise ValueError('Invalid filename')
+  upload_dir = os.path.realpath(WEB_UPLOADDIR)
+  destination = os.path.realpath(os.path.join(upload_dir, safe_name))
+  if os.path.dirname(destination) != upload_dir:
+    raise ValueError('Invalid filename')
+  with open(destination, 'w') as f:
     f.write(text)
-    f.close()
-  except Exception as e:
-    text = str(e)
   return text
 
 def is_level_easy():
