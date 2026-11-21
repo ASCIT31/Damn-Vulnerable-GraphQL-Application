@@ -41,7 +41,13 @@ from core.helpers import get_identity
 from app import app, db
 
 from version import VERSION
-from config import WEB_HOST, WEB_PORT
+from config import WEB_HOST, WEB_PORT, MAX_PASTE_TITLE_LENGTH, MAX_PASTE_CONTENT_LENGTH
+
+def validate_paste_size(title=None, content=None):
+  if title is not None and len(title) > MAX_PASTE_TITLE_LENGTH:
+    raise GraphQLError('Paste title is too long (max {} characters).'.format(MAX_PASTE_TITLE_LENGTH))
+  if content is not None and len(content) > MAX_PASTE_CONTENT_LENGTH:
+    raise GraphQLError('Paste content is too long (max {} characters).'.format(MAX_PASTE_CONTENT_LENGTH))
 
 # SQLAlchemy Types
 class UserObject(SQLAlchemyObjectType):
@@ -116,6 +122,7 @@ class CreatePaste(graphene.Mutation):
       burn = graphene.Boolean(required=False, default_value=False)
 
     def mutate(self, info, title, content, public, burn):
+      validate_paste_size(title, content)
       owner = Owner.query.filter_by(name='DVGAUser').first()
 
       paste_obj = Paste.create_paste(
@@ -138,6 +145,7 @@ class EditPaste(graphene.Mutation):
       content = graphene.String(required=False)
 
     def mutate(self, info, id, title=None, content=None):
+      validate_paste_size(title, content)
       paste_obj = Paste.query.filter_by(id=id).first()
 
       if title == None:
@@ -183,6 +191,7 @@ class UploadPaste(graphene.Mutation):
   result = graphene.String()
 
   def mutate(self, info, filename, content):
+    validate_paste_size(content=content)
     result = helpers.save_file(filename, content)
     owner = Owner.query.filter_by(name='DVGAUser').first()
 
