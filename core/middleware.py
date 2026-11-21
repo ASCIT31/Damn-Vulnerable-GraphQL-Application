@@ -11,31 +11,29 @@ from core import (
 
 # Middleware
 class DepthProtectionMiddleware(object):
+  """Enforced on every request whatever the difficulty level.
+
+  The depth of the executed operation is computed once from the parsed AST
+  (fragments expanded) and every field of an over-deep operation is rejected.
+  """
+  CACHE_KEY = '__dvga_operation_depth__'
+
   def resolve(self, next, root, info, **kwargs):
-    if helpers.is_level_easy():
-      return next(root, info, **kwargs)
+    context = info.context
+    if isinstance(context, dict):
+      depth = context.get(self.CACHE_KEY)
+    else:
+      depth = getattr(context, self.CACHE_KEY, None)
 
-    depth = 0
-    array_qry = []
+    if depth is None:
+      depth = parser.get_operation_depth(info.operation, info.fragments)
+      if isinstance(context, dict):
+        context[self.CACHE_KEY] = depth
+      elif context is not None:
+        setattr(context, self.CACHE_KEY, depth)
 
-    if isinstance(info.context.json, dict):
-      array_qry.append(info.context.json)
-
-    elif isinstance(info.context.json, list):
-      array_qry = info.context.json
-
-    for q in array_qry:
-      query = q.get('query', None)
-      mutation = q.get('mutation', None)
-
-      if query:
-        depth = parser.get_depth(query)
-
-      elif mutation:
-        depth = parser.get_depth(query)
-
-      if security.depth_exceeded(depth):
-        raise werkzeug.exceptions.SecurityError('Query Depth Exceeded! Deep Recursion Attack Detected.')
+    if security.depth_exceeded(depth):
+      raise werkzeug.exceptions.SecurityError('Query Depth Exceeded! Deep Recursion Attack Detected.')
 
     return next(root, info, **kwargs)
 
