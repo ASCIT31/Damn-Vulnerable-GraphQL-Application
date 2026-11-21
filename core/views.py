@@ -23,6 +23,7 @@ from core.view_override import (
 from db.solutions import solutions as list_of_solutions
 from rx.subjects import Subject
 from flask import (
+  abort,
   request,
   render_template,
   make_response
@@ -41,7 +42,7 @@ from core.helpers import get_identity
 from app import app, db
 
 from version import VERSION
-from config import WEB_HOST, WEB_PORT
+from config import WEB_HOST, WEB_PORT, ENABLE_SOLUTIONS
 
 # SQLAlchemy Types
 class UserObject(SQLAlchemyObjectType):
@@ -401,6 +402,8 @@ def about():
 
 @app.route('/solutions')
 def solutions():
+  if not ENABLE_SOLUTIONS:
+    abort(404)
   return render_template("solutions.html", solutions=list_of_solutions)
 
 @app.route('/create_paste')

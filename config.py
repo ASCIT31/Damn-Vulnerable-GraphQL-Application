@@ -11,6 +11,9 @@ WEB_PORT  = os.environ.get('WEB_PORT', 5013)
 WEB_DEBUG = os.environ.get('WEB_DEBUG', True)
 WEB_UPLOADDIR = 'pastes/'
 
+# The exploitation walkthrough (/solutions) is opt-in, never served by default.
+ENABLE_SOLUTIONS = os.environ.get('DVGA_ENABLE_SOLUTIONS', 'false').lower() == 'true'
+
 # GraphQL Security Protection
 MAX_DEPTH = 8
 MAX_COST = 10
