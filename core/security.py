@@ -1,4 +1,6 @@
 import config
+
+from werkzeug.security import check_password_hash
 import random
 import ipaddress
 import time
@@ -49,7 +51,7 @@ def check_creds(username, password, real_password):
   if username != 'admin':
     return (False, 'Username is invalid')
 
-  if password == real_password:
+  if password and check_password_hash(real_password, password):
     return (True, 'Password Accepted.')
 
   return (False, 'Password Incorrect')
