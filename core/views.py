@@ -18,7 +18,8 @@ from core.models import (
 from core.view_override import (
   OverriddenView,
   GeventSubscriptionServerCustom,
-  format_custom_error
+  format_custom_error,
+  format_safe_error
 )
 from db.solutions import solutions as list_of_solutions
 from rx.subjects import Subject
@@ -234,7 +235,7 @@ class Login(graphene.Mutation):
         user = User.query.filter_by(username=username, password=password).first()
         Audit.create_audit_entry(info)
         if not user:
-            raise Exception('Authentication Failure')
+            raise GraphQLError('Authentication Failure')
         return Login(
             access_token = create_access_token(username),
             refresh_token = create_refresh_token(username)
@@ -510,7 +511,8 @@ app.add_url_rule('/graphql', view_func=OverriddenView.as_view(
   schema=schema,
   middleware=gql_middlew,
   backend=CustomBackend(),
-  batch=True
+  batch=True,
+  format_error=format_safe_error
 ))
 
 app.add_url_rule('/graphiql', view_func=OverriddenView.as_view(

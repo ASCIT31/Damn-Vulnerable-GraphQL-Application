@@ -1,4 +1,5 @@
 import json
+import re
 import traceback
 import inspect
 
@@ -13,48 +14,40 @@ from graphql_server import (
     FormattedResult
 )
 from graphql import GraphQLError
+from werkzeug.exceptions import HTTPException
 from graphql.error import format_error as format_graphql_error
 from graphql_ws.gevent import GeventConnectionContext
 from graphql_ws.base_sync import BaseSyncSubscriptionServer
 from graphql_ws.base import ConnectionClosedException
 
-def format_custom_error(error):
-    try:
-        message = str(error)
-    except UnicodeEncodeError:
-        message = error.message.encode("utf-8")
+GENERIC_ERROR_MESSAGE = 'Internal server error.'
+FIELD_SUGGESTION = re.compile(r'\s*Did you mean [^?]*\?')
+
+def format_safe_error(error):
+    """Client-facing error: no stack trace, no file paths, no ORM/SQL text, no schema suggestions."""
+    original = getattr(error, 'original_error', None)
+    if original is not None and not isinstance(original, (GraphQLError, HTTPException)):
+        message = GENERIC_ERROR_MESSAGE
+    else:
+        try:
+            message = str(error)
+        except UnicodeEncodeError:
+            message = GENERIC_ERROR_MESSAGE
+        message = FIELD_SUGGESTION.sub('', message)
 
     formatted_error = {"message": message}
-
     if isinstance(error, GraphQLError):
         if error.locations is not None:
             formatted_error["locations"] = [
                 {"line": loc.line, "column": loc.column} for loc in error.locations
             ]
-
         if error.path is not None:
             formatted_error["path"] = error.path
-
-        if error.extensions is not None:
-            formatted_error["extensions"] = error.extensions
-
-        # A user who has not yet altered their cookie to bypass the GraphiQL protection will see the debug information and may get bamboozled
-        # Do not show tracing error the first time a user hits the GraphiQL endpoint.
-        if 'GraphiQL Access Rejected' not in message:
-            if 'extensions' not in formatted_error:
-                formatted_error['extensions'] = {}
-
-            # Get some stack traces and caller file information
-            frame = inspect.currentframe()
-            caller_frame = inspect.stack()[0]
-            caller_filename_full = caller_frame.filename
-
-            formatted_error['extensions']['exception'] = {}
-            formatted_error['extensions']['exception']['stack'] = traceback.format_stack(frame)
-            formatted_error['extensions']['exception']['debug'] = traceback.format_exc()
-            formatted_error['extensions']['exception']['path'] = caller_filename_full
-
     return formatted_error
+
+def format_custom_error(error):
+    # GraphiQL uses the same safe formatter: stack traces and file paths are never returned.
+    return format_safe_error(error)
 
 def format_execution_result(execution_result, format_error,):
     status_code = 200
