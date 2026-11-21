@@ -43,7 +43,9 @@
 
     function subscribeToPastes() {
 
-        var exampleSocket = new WebSocket("ws://{{host}}:{{port}}/subscriptions");
+        // Same-origin URL built in the browser: no server bind address/port is rendered into the page.
+        var wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        var exampleSocket = new WebSocket(wsScheme + window.location.host + '/subscriptions');
 
         exampleSocket.onopen = function () {
             var query = 'subscription getPaste {paste { id title content ipAddr userAgent public owner {name} } }';
