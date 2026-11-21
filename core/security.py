@@ -30,13 +30,27 @@ def is_port(port):
       return True
   return False
 
-def allowed_cmds(cmd):
-  if helpers.is_level_easy():
-    return True
-  elif helpers.is_level_hard():
-    if cmd.startswith(('echo', 'ps' 'whoami', 'tail')):
-      return True
-  return False
+# Diagnostics are restricted to a fixed set of commands. Each one maps to a
+# hard-coded argv: user input never reaches a shell and never adds arguments.
+DIAGNOSTIC_COMMANDS = {
+  'whoami': ['whoami'],
+  'uptime': ['uptime'],
+  'date': ['date'],
+  'ps': ['ps'],
+}
+
+# `ps` options accepted by systemDebug. Options that print the process
+# environment (e.g. `e`) are deliberately not allowed.
+PS_ALLOWED_OPTIONS = ('a', 'u', 'x', 'aux', '-e', '-f', '-ef')
+
+def diagnostic_argv(cmd):
+  if not isinstance(cmd, str):
+    return None
+  argv = DIAGNOSTIC_COMMANDS.get(cmd.strip())
+  return list(argv) if argv else None
+
+def ps_option_allowed(arg):
+  return arg in PS_ALLOWED_OPTIONS
 
 def strip_dangerous_characters(cmd):
   if helpers.is_level_easy():
