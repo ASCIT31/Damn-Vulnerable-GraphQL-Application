@@ -9,6 +9,7 @@ from ipaddress import IPv4Network
 from app import db, app
 
 from core.models import Paste, Owner, User, ServerMode
+from werkzeug.security import generate_password_hash
 
 from db.agents import agents
 from db.owners import owners
@@ -60,8 +61,8 @@ def pump_db():
   with app.app_context():
     db.create_all()
 
-    admin = User(username="admin", email="admin@blackhatgraphql.com", password=random_password())
-    operator = User(username="operator", email="operator@blackhatgraphql.com", password="password123")
+    admin = User(username="admin", email="admin@blackhatgraphql.com", password=generate_password_hash(random_password()))
+    operator = User(username="operator", email="operator@blackhatgraphql.com", password=generate_password_hash("password123"))
     # create tokens for admin & operator
 
     db.session.add(admin)

@@ -1,6 +1,7 @@
 import datetime
 
 from app import db
+from werkzeug.security import generate_password_hash, check_password_hash
 import re
 from graphql import parse
 from graphql.execution.base import ResolveInfo
@@ -11,10 +12,17 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20),unique=True,nullable=False)
     email = db.Column(db.String(20),unique=True,nullable=False)
-    password = db.Column(db.String(60),nullable=False)
+    # Salted password hash (werkzeug PBKDF2), never the plaintext password.
+    password = db.Column(db.String(255),nullable=False)
+
+    def check_password(self, password):
+      if not password:
+        return False
+      return check_password_hash(self.password, password)
 
     @classmethod
     def create_user(cls, **kw):
+      kw['password'] = generate_password_hash(kw['password'])
       obj = cls(**kw)
       db.session.add(obj)
       db.session.commit()
