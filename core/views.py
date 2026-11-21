@@ -465,6 +465,31 @@ def get_server_info():
   return dict(version=VERSION, host=WEB_HOST, port=WEB_PORT)
 
 
+CONTENT_SECURITY_POLICY = "; ".join([
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "img-src 'self' data:",
+  "font-src 'self' data:",
+  "connect-src 'self' ws: wss:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+])
+
+@app.after_request
+def set_security_headers(response):
+  response.headers.setdefault('Content-Security-Policy', CONTENT_SECURITY_POLICY)
+  response.headers.setdefault('X-Frame-Options', 'DENY')
+  response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+  response.headers.setdefault('Referrer-Policy', 'no-referrer')
+  # Legacy XSS auditor disabled on purpose (it introduced its own leaks); CSP replaces it.
+  response.headers.setdefault('X-XSS-Protection', '0')
+  if request.is_secure:
+    response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  return response
+
 @app.before_request
 def set_difficulty():
   mode_header = request.headers.get('X-DVGA-MODE', None)
