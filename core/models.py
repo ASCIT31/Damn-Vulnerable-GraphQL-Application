@@ -22,10 +22,15 @@ class User(db.Model):
       return obj
 
 
+SENSITIVE_ARGUMENT = re.compile(
+  r'(?i)\b((?:password|token|accesstoken|refreshtoken|secret)\s*:\s*)"(?:[^"\\]|\\.)*"'
+)
+
 def clean_query(gql_query):
-  clean = re.sub(r'(?<=token:")(.*)(?=")', "*****", gql_query)
-  clean = re.sub(r'(?<=password:")(.*)(?=")', "*****", clean)
-  return clean
+  """Redact credential arguments (any spacing, any case) before the query is stored."""
+  if not gql_query:
+    return gql_query
+  return SENSITIVE_ARGUMENT.sub(r'\1"*****"', gql_query)
 
 
 class Audit(db.Model):
