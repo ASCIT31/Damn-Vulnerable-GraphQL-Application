@@ -183,7 +183,11 @@ class UploadPaste(graphene.Mutation):
   result = graphene.String()
 
   def mutate(self, info, filename, content):
-    result = helpers.save_file(filename, content)
+    try:
+      result = helpers.save_file(filename, content)
+    except (ValueError, OSError):
+      # Generic message: never echo filesystem paths or OS errors to the client.
+      raise GraphQLError('Could not save the uploaded file.')
     owner = Owner.query.filter_by(name='DVGAUser').first()
 
     Paste.create_paste(
