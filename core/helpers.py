@@ -3,6 +3,7 @@ import uuid
 import os
 from config import WEB_UPLOADDIR
 from jwt import decode
+from flask import current_app
 from core.models import ServerMode
 
 def run_cmd(cmd):
@@ -18,7 +19,16 @@ def decode_base64(text):
   return base64.b64decode(text).decode('utf-8')
 
 def get_identity(token):
-  return decode(token, options={"verify_signature":False, "verify_exp":False}).get('identity')
+  # Verify signature, pin the algorithm (rejects alg=none and key confusion) and enforce expiry.
+  claims = decode(
+    token,
+    current_app.config['JWT_SECRET_KEY'],
+    algorithms=['HS256'],
+    options={'require': ['exp', 'identity']}
+  )
+  if claims.get('type') != 'access':
+    raise ValueError('Not an access token')
+  return claims.get('identity')
 
 def save_file(filename, text):
   try:
