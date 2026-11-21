@@ -22,7 +22,10 @@ from core.view_override import (
 )
 from db.solutions import solutions as list_of_solutions
 from rx.subjects import Subject
+from urllib.parse import urlparse
+
 from flask import (
+  abort,
   request,
   render_template,
   make_response
@@ -464,6 +467,24 @@ def get_difficulty():
 def get_server_info():
   return dict(version=VERSION, host=WEB_HOST, port=WEB_PORT)
 
+
+@app.before_request
+def enforce_graphql_csrf_protection():
+  """Only accept GraphQL POSTs that a cross-site page cannot forge.
+
+  `application/json` is not a CORS-safelisted content type, so a foreign
+  origin cannot send it without a preflight (which is never granted), and an
+  explicit cross-origin Origin header is refused outright. Mutations over
+  GET are already rejected by graphql-server.
+  """
+  if request.path != '/graphql' or request.method != 'POST':
+    return None
+  if request.mimetype != 'application/json':
+    abort(415)
+  origin = request.headers.get('Origin')
+  if origin and urlparse(origin).netloc != request.host:
+    abort(403)
+  return None
 
 @app.before_request
 def set_difficulty():
