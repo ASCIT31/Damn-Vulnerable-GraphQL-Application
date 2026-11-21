@@ -392,7 +392,12 @@ class Query(graphene.ObjectType):
 @app.route('/')
 def index():
   resp = make_response(render_template('index.html'))
-  resp.set_cookie("env", "graphiql:disable")
+  resp.set_cookie(
+    "env", "graphiql:disable",
+    httponly=True,
+    samesite="Strict",
+    secure=request.is_secure or app.config.get("SESSION_COOKIE_SECURE", False)
+  )
   return resp
 
 @app.route('/about')

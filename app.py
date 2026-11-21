@@ -14,6 +14,9 @@ app.config["UPLOAD_FOLDER"] = config.WEB_UPLOADDIR
 app.config['SECRET_KEY'] = 'dvga'
 app.config["JWT_SECRET_KEY"] = 'dvga'
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 120
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = 'Strict'
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get('DVGA_COOKIE_SECURE', 'false').lower() == 'true'
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 30
 
 auth = GraphQLAuth(app)
