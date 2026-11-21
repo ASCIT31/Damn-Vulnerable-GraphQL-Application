@@ -505,7 +505,8 @@ class CustomBackend(GraphQLCoreBackend):
         super().__init__(executor)
         self.execute_params['allow_subscriptions'] = True
 
-app.add_url_rule('/graphql', view_func=OverriddenView.as_view(
+# Only GET and POST are meaningful for GraphQL over HTTP.
+app.add_url_rule('/graphql', methods=['GET', 'POST'], view_func=OverriddenView.as_view(
   'graphql',
   schema=schema,
   middleware=gql_middlew,
@@ -513,7 +514,7 @@ app.add_url_rule('/graphql', view_func=OverriddenView.as_view(
   batch=True
 ))
 
-app.add_url_rule('/graphiql', view_func=OverriddenView.as_view(
+app.add_url_rule('/graphiql', methods=['GET', 'POST'], view_func=OverriddenView.as_view(
   'graphiql',
   schema = schema,
   backend=CustomBackend(),
