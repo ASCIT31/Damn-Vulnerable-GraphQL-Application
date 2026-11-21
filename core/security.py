@@ -1,7 +1,11 @@
 import config
 import random
 import ipaddress
+import re
+import socket
 import time
+
+from urllib.parse import quote
 
 from core import helpers
 
@@ -93,3 +97,39 @@ def cost_exceeded(qry_fields):
     return True
 
   return False
+
+IMPORT_ALLOWED_SCHEMES = ('http', 'https')
+IMPORT_ALLOWED_PORTS = (80, 443)
+IMPORT_MAX_BYTES = 64 * 1024
+_HOSTNAME_RE = re.compile(r'[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?')
+
+def build_safe_import_url(scheme, host, port, path):
+  """Validate an importPaste destination and return the URL to fetch.
+
+  Only http/https on the standard ports are allowed, and every address the
+  host resolves to must be a public (globally routable) address, which blocks
+  loopback, RFC1918, link-local (cloud metadata) and other internal targets.
+  """
+  scheme = (scheme or '').lower()
+  if scheme not in IMPORT_ALLOWED_SCHEMES:
+    raise ValueError('Scheme not allowed')
+  if port is None:
+    port = 443 if scheme == 'https' else 80
+  if not is_port(port) or port not in IMPORT_ALLOWED_PORTS:
+    raise ValueError('Port not allowed')
+  if not isinstance(host, str) or not _HOSTNAME_RE.fullmatch(host):
+    raise ValueError('Invalid host')
+  try:
+    addresses = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+  except (socket.gaierror, UnicodeError):
+    raise ValueError('Host does not resolve')
+  if not addresses:
+    raise ValueError('Host does not resolve')
+  for address in addresses:
+    ip = ipaddress.ip_address(address[4][0])
+    if not ip.is_global:
+      raise ValueError('Destination not allowed')
+  path = path if isinstance(path, str) else '/'
+  if not path.startswith('/'):
+    path = '/' + path
+  return '{}://{}:{}{}'.format(scheme, host, port, quote(path, safe="/-._~%?=&"))

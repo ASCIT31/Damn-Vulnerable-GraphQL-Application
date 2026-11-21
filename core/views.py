@@ -1,4 +1,5 @@
 import graphene
+import requests
 
 from graphql import GraphQLError
 
@@ -207,8 +208,18 @@ class ImportPaste(graphene.Mutation):
     scheme = graphene.String(required=True)
 
   def mutate(self, info, host='pastebin.com', port=443, path='/', scheme="http"):
-    url = security.strip_dangerous_characters(f"{scheme}://{host}:{port}{path}")
-    cmd = helpers.run_cmd(f'curl --insecure {url}')
+    # Fetch with an HTTP client instead of a shell `curl`, only towards
+    # validated public destinations, without following redirects.
+    try:
+      url = security.build_safe_import_url(scheme, host, port, path)
+      response = requests.get(url, timeout=5, allow_redirects=False, stream=True)
+      try:
+        raw = response.raw.read(security.IMPORT_MAX_BYTES, decode_content=True)
+      finally:
+        response.close()
+    except (ValueError, requests.RequestException):
+      return ImportPaste(result='error')
+    cmd = raw.decode('utf-8', errors='replace')
 
     owner = Owner.query.filter_by(name='DVGAUser').first()
     Paste.create_paste(
