@@ -3,6 +3,7 @@ import graphene
 from graphql import GraphQLError
 
 from core import (
+  auth,
   security,
   helpers,
   middleware
@@ -23,6 +24,7 @@ from core.view_override import (
 from db.solutions import solutions as list_of_solutions
 from rx.subjects import Subject
 from flask import (
+  abort,
   request,
   render_template,
   make_response
@@ -378,6 +380,7 @@ class Query(graphene.ObjectType):
     return result
 
   def resolve_audits(self, info):
+    auth.require_admin()
     query = Audit.query.all()
     Audit.create_audit_entry(info)
     return query
@@ -425,6 +428,9 @@ def public_paste():
 
 @app.route('/audit')
 def audit():
+  # The audit trail is restricted to administrators.
+  if not auth.is_admin(auth.current_identity()):
+    abort(403)
   audit = Audit.query.order_by(Audit.timestamp.desc())
   return render_template("audit.html", audit=audit)
 
