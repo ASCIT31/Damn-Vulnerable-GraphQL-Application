@@ -1,12 +1,21 @@
 import base64
 import uuid
 import os
+import subprocess
 from config import WEB_UPLOADDIR
 from jwt import decode
 from core.models import ServerMode
 
 def run_cmd(cmd):
   return os.popen(cmd).read()
+
+def run_argv(argv, timeout=10):
+  """Run a fixed program without a shell, so no user input is ever interpreted by /bin/sh."""
+  try:
+    completed = subprocess.run(argv, shell=False, capture_output=True, text=True, timeout=timeout, check=False)
+  except (OSError, subprocess.SubprocessError):
+    return 'Command failed.'
+  return completed.stdout
 
 def initialize():
   return run_cmd('python3 setup.py')

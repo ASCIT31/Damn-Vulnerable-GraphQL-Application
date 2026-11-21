@@ -340,19 +340,20 @@ class Query(graphene.ObjectType):
     res, msg = security.check_creds(username, password, real_passw)
     Audit.create_audit_entry(info)
     if res:
-      output = f'{cmd}: command not found'
-      if security.allowed_cmds(cmd):
-        output = helpers.run_cmd(cmd)
-      return output
+      argv = security.diagnostic_argv(cmd)
+      if argv is None:
+        return 'Command not allowed.'
+      return helpers.run_argv(argv)
     return msg
 
   def resolve_system_debug(self, info, arg=None):
     Audit.create_audit_entry(info)
+    argv = ['ps']
     if arg:
-      output = helpers.run_cmd('ps {}'.format(arg))
-    else:
-      output = helpers.run_cmd('ps')
-    return output
+      if not security.ps_option_allowed(arg):
+        return 'Argument not allowed.'
+      argv.append(arg)
+    return helpers.run_argv(argv)
 
   def resolve_read_and_burn(self, info, id):
     result = Paste.query.filter_by(id=id, burn=True).first()
