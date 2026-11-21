@@ -1,8 +1,11 @@
+import re
+
 import graphene
 
 from graphql import GraphQLError
 
 from core import (
+  auth,
   security,
   helpers,
   middleware
@@ -36,6 +39,7 @@ from flask_graphql_auth import (
 from flask_sockets import Sockets
 from graphql.backend import GraphQLCoreBackend
 from sqlalchemy import event, text
+from sqlalchemy.exc import IntegrityError
 from graphene_sqlalchemy import SQLAlchemyObjectType
 from core.helpers import get_identity
 from app import app, db
@@ -89,6 +93,10 @@ class UserInput(graphene.InputObjectType):
   email = graphene.String(required=True)
   password = graphene.String(required=True)
 
+USERNAME_PATTERN = re.compile(r'[A-Za-z0-9_.-]{3,20}')
+EMAIL_PATTERN = re.compile(r'[^@\s]{1,64}@[A-Za-z0-9.-]{1,185}\.[A-Za-z]{2,24}')
+MIN_PASSWORD_LENGTH = 12
+
 class CreateUser(graphene.Mutation):
   class Arguments:
     user_data = UserInput(required=True)
@@ -96,11 +104,27 @@ class CreateUser(graphene.Mutation):
   user = graphene.Field(lambda:UserObject)
 
   def mutate(root, info, user_data=None):
-    user_obj = User.create_user(
-      username=user_data.username,
-      email=user_data.email,
-      password=user_data.password
-    )
+    # Accounts are provisioned by an administrator; there is no anonymous self-registration.
+    auth.require_admin()
+
+    username = (user_data.username or '').strip()
+    email = (user_data.email or '').strip()
+    password = user_data.password or ''
+    if not USERNAME_PATTERN.fullmatch(username) or not EMAIL_PATTERN.fullmatch(email):
+      raise GraphQLError('Invalid username or email.')
+    if len(password) < MIN_PASSWORD_LENGTH:
+      raise GraphQLError('Password must be at least {} characters long.'.format(MIN_PASSWORD_LENGTH))
+
+    try:
+      user_obj = User.create_user(
+        username=username,
+        email=email,
+        password=password
+      )
+    except IntegrityError:
+      # Generic message: no SQL statement, table or engine details reach the client.
+      db.session.rollback()
+      raise GraphQLError('User could not be created.')
 
     Audit.create_audit_entry(info)
 
