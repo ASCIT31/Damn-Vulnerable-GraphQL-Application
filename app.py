@@ -11,8 +11,9 @@ app.secret_key = os.urandom(24)
 app.config["SQLALCHEMY_DATABASE_URI"] = config.SQLALCHEMY_DATABASE_URI
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = config.SQLALCHEMY_TRACK_MODIFICATIONS
 app.config["UPLOAD_FOLDER"] = config.WEB_UPLOADDIR
-app.config['SECRET_KEY'] = 'dvga'
-app.config["JWT_SECRET_KEY"] = 'dvga'
+# Signing keys come from the environment; never a hard-coded, guessable value.
+app.config['SECRET_KEY'] = os.environ.get('DVGA_SECRET_KEY') or os.urandom(32).hex()
+app.config["JWT_SECRET_KEY"] = os.environ.get('DVGA_JWT_SECRET_KEY') or os.urandom(32).hex()
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 120
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 30
 

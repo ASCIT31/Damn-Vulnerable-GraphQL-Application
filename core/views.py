@@ -1,6 +1,7 @@
 import graphene
 
 from graphql import GraphQLError
+from jwt import PyJWTError
 
 from core import (
   security,
@@ -283,7 +284,10 @@ class Query(graphene.ObjectType):
   def resolve_me(self, info, token):
     Audit.create_audit_entry(info)
 
-    identity = get_identity(token)
+    try:
+      identity = get_identity(token)
+    except (PyJWTError, ValueError):
+      raise GraphQLError('Invalid or expired token.')
 
     if info.context.json == None:
       raise GraphQLError("JSON payload was not found.")
