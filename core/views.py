@@ -47,7 +47,8 @@ from config import WEB_HOST, WEB_PORT
 class UserObject(SQLAlchemyObjectType):
   class Meta:
     model = User
-    exclude_fields = ('email',)
+    # Credentials are never part of the API surface.
+    exclude_fields = ('email', 'password')
 
   username = graphene.String(capitalize=graphene.Boolean())
 
@@ -56,13 +57,6 @@ class UserObject(SQLAlchemyObjectType):
     if kwargs.get('capitalize'):
       return self.username.capitalize()
     return self.username
-
-  @staticmethod
-  def resolve_password(self, info, **kwargs):
-    if info.context.json.get('identity') == 'admin':
-      return self.password
-    else:
-      return '******'
 
 class PasteObject(SQLAlchemyObjectType):
   class Meta:
