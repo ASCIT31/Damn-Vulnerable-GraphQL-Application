@@ -3,6 +3,7 @@ import graphene
 from graphql import GraphQLError
 
 from core import (
+  auth,
   security,
   helpers,
   middleware
@@ -240,6 +241,17 @@ class Login(graphene.Mutation):
             refresh_token = create_refresh_token(username)
         )
 
+class DeleteAllPastes(graphene.Mutation):
+  """Destructive bulk delete: a mutation (never a GET-able query), administrators only."""
+  result = graphene.Boolean()
+
+  def mutate(self, info):
+    auth.require_admin()
+    Audit.create_audit_entry(info)
+    Paste.query.delete()
+    db.session.commit()
+    return DeleteAllPastes(result=Paste.query.count() == 0)
+
 class Mutations(graphene.ObjectType):
   create_paste = CreatePaste.Field()
   edit_paste = EditPaste.Field()
@@ -248,6 +260,7 @@ class Mutations(graphene.ObjectType):
   import_paste = ImportPaste.Field()
   create_user = CreateUser.Field()
   login = Login.Field()
+  delete_all_pastes = DeleteAllPastes.Field()
 
 global_event = Subject()
 
@@ -277,7 +290,6 @@ class Query(graphene.ObjectType):
   read_and_burn = graphene.Field(PasteObject, id=graphene.Int())
   search = graphene.List(SearchResult, keyword=graphene.String())
   audits = graphene.List(AuditObject)
-  delete_all_pastes = graphene.Boolean()
   me = graphene.Field(UserObject, token=graphene.String())
 
   def resolve_me(self, info, token):
@@ -330,6 +342,7 @@ class Query(graphene.ObjectType):
     return query.filter_by(id=id, burn=False).first()
 
   def resolve_system_update(self, info):
+    auth.require_admin()
     security.simulate_load()
     Audit.create_audit_entry(info)
     return 'no updates available'
@@ -362,6 +375,7 @@ class Query(graphene.ObjectType):
     return result
 
   def resolve_system_health(self, info):
+    auth.require_admin()
     Audit.create_audit_entry(info)
     return 'System Load: {}'.format(
       helpers.run_cmd("uptime | awk -F': ' '{print $2}' | awk -F',' '{print $1}'")
@@ -382,11 +396,6 @@ class Query(graphene.ObjectType):
     Audit.create_audit_entry(info)
     return query
 
-  def resolve_delete_all_pastes(self, info):
-    Audit.create_audit_entry(info)
-    Paste.query.delete()
-    db.session.commit()
-    return Paste.query.count() == 0
 
 
 @app.route('/')
