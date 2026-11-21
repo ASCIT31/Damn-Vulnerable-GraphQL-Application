@@ -510,7 +510,7 @@ app.add_url_rule('/graphql', view_func=OverriddenView.as_view(
   schema=schema,
   middleware=gql_middlew,
   backend=CustomBackend(),
-  batch=True
+  batch=False
 ))
 
 app.add_url_rule('/graphiql', view_func=OverriddenView.as_view(
