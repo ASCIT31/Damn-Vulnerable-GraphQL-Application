@@ -3,6 +3,7 @@ import graphene
 from graphql import GraphQLError
 
 from core import (
+  auth,
   security,
   helpers,
   middleware
@@ -42,6 +43,24 @@ from app import app, db
 
 from version import VERSION
 from config import WEB_HOST, WEB_PORT
+
+# Paste ownership
+def owns_paste(paste, identity):
+  if paste is None or not identity:
+    return False
+  if auth.is_admin(identity):
+    return True
+  return paste.owner is not None and paste.owner.name == identity
+
+def owner_for_request():
+  """Pastes are owned by the authenticated user; anonymous pastes go to the shared DVGAUser owner."""
+  name = auth.current_identity() or 'DVGAUser'
+  owner = Owner.query.filter_by(name=name).first()
+  if owner is None:
+    owner = Owner(name=name)
+    db.session.add(owner)
+    db.session.commit()
+  return owner
 
 # SQLAlchemy Types
 class UserObject(SQLAlchemyObjectType):
@@ -116,7 +135,7 @@ class CreatePaste(graphene.Mutation):
       burn = graphene.Boolean(required=False, default_value=False)
 
     def mutate(self, info, title, content, public, burn):
-      owner = Owner.query.filter_by(name='DVGAUser').first()
+      owner = owner_for_request()
 
       paste_obj = Paste.create_paste(
         title=title,
@@ -138,7 +157,10 @@ class EditPaste(graphene.Mutation):
       content = graphene.String(required=False)
 
     def mutate(self, info, id, title=None, content=None):
+      identity = auth.require_login()
       paste_obj = Paste.query.filter_by(id=id).first()
+      if not owns_paste(paste_obj, identity):
+        raise GraphQLError('Paste not found.')
 
       if title == None:
         title = paste_obj.title
@@ -163,8 +185,9 @@ class DeletePaste(graphene.Mutation):
 
   def mutate(self, info, id):
     result = False
+    identity = auth.require_login()
 
-    if Paste.query.filter_by(id=id).delete():
+    if owns_paste(Paste.query.filter_by(id=id).first(), identity) and Paste.query.filter_by(id=id).delete():
       result = True
       db.session.commit()
 
@@ -259,7 +282,8 @@ class Subscription(graphene.ObjectType):
   paste = graphene.Field(PasteObject, id=graphene.Int(), title=graphene.String())
 
   def resolve_paste(self, info):
-    return global_event.map(lambda i: i)
+    # Only public, non-burn pastes are broadcast to (unauthenticated) subscribers.
+    return global_event.filter(lambda paste: paste.public and not paste.burn)
 
 class SearchResult(graphene.Union):
   class Meta:
@@ -316,6 +340,12 @@ class Query(graphene.ObjectType):
     Audit.create_audit_entry(info)
     result = query.filter_by(public=public, burn=False)
 
+    if not public:
+      # Private pastes are only visible to their owner (or an administrator).
+      identity = auth.require_login()
+      if not auth.is_admin(identity):
+        result = result.join(Owner, Paste.owner_id == Owner.id).filter(Owner.name == identity)
+
     if filter:
       result = result.filter(text("title = '%s' or content = '%s'" % (filter, filter)))
 
@@ -325,9 +355,13 @@ class Query(graphene.ObjectType):
     query = PasteObject.get_query(info)
     Audit.create_audit_entry(info)
     if title:
-      return query.filter_by(title=title, burn=False).first()
+      paste = query.filter_by(title=title, burn=False).first()
+    else:
+      paste = query.filter_by(id=id, burn=False).first()
 
-    return query.filter_by(id=id, burn=False).first()
+    if paste is not None and not paste.public and not owns_paste(paste, auth.current_identity()):
+      return None
+    return paste
 
   def resolve_system_update(self, info):
     security.simulate_load()
@@ -355,7 +389,11 @@ class Query(graphene.ObjectType):
     return output
 
   def resolve_read_and_burn(self, info, id):
+    identity = auth.require_login()
     result = Paste.query.filter_by(id=id, burn=True).first()
+    if not owns_paste(result, identity):
+      Audit.create_audit_entry(info)
+      return None
     Paste.query.filter_by(id=id, burn=True).delete()
     db.session.commit()
     Audit.create_audit_entry(info)
